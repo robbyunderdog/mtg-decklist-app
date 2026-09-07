@@ -1,0 +1,2 @@
+ALTER TABLE "deck_cards" ADD COLUMN "checked_quantity" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "deck_cards" ADD CONSTRAINT "checked_quantity_in_range" CHECK ("deck_cards"."checked_quantity" >= 0 and "deck_cards"."checked_quantity" <= "deck_cards"."quantity");

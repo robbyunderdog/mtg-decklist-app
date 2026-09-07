@@ -1,0 +1,1 @@
+ALTER TABLE "cards" DROP COLUMN "raw_json";
