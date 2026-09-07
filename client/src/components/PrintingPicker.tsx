@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as decksApi from "../api/decksApi";
+import { HoverZoomImage } from "./HoverZoomImage";
 
 interface Props {
   deckId: string;
@@ -60,7 +61,14 @@ export function PrintingPicker({ deckId, cardRowId, foil, onSelect }: Props) {
                   isCurrent ? "opacity-60" : ""
                 }`}
               >
-                {p.imageSmall && <img src={p.imageSmall} alt="" className="h-10 w-auto rounded" />}
+                {p.imageSmall && (
+                  <HoverZoomImage
+                    small={p.imageSmall}
+                    large={p.imageNormal}
+                    alt={`${p.setCode.toUpperCase()} #${p.collectorNumber}`}
+                    className="h-10 w-auto shrink-0 cursor-zoom-in rounded"
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-neutral-100">
                     {p.setCode.toUpperCase()} #{p.collectorNumber}

@@ -112,6 +112,7 @@ export interface PrintingOption {
   priceUsd: string | null;
   priceUsdFoil: string | null;
   imageSmall: string | null;
+  imageNormal: string | null;
 }
 
 export function listPrintings(deckId: string, cardRowId: string) {

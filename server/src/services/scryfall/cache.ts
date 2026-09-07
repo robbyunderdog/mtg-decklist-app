@@ -134,6 +134,7 @@ export interface PrintingOption {
   priceUsd: string | null;
   priceUsdFoil: string | null;
   imageSmall: string | null;
+  imageNormal: string | null;
 }
 
 function toPrintingOption(row: typeof cards.$inferSelect): PrintingOption {
@@ -144,6 +145,7 @@ function toPrintingOption(row: typeof cards.$inferSelect): PrintingOption {
     priceUsd: row.priceUsd,
     priceUsdFoil: row.priceUsdFoil,
     imageSmall: row.imageSmall,
+    imageNormal: row.imageNormal,
   };
 }
 
