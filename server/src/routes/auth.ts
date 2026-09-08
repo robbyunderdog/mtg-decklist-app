@@ -1,3 +1,4 @@
+// Registration, login, logout, and "who am I" endpoints.
 import { Router } from "express";
 import { login, logout, me, register } from "../controllers/authController.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -7,6 +8,8 @@ const router = Router();
 router.post("/register", register);
 router.post("/login", login);
 router.post("/logout", logout);
+// The only auth route that requires an existing session — the client calls this on load to
+// find out whether the stored cookie is still valid.
 router.get("/me", requireAuth, me);
 
 export default router;

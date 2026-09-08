@@ -1,5 +1,7 @@
+// Card search — used by CardSearchBox (adding a card to a deck by name).
 import { apiFetch } from "./client";
 
+// Mirrors the server's cached card row shape (server/src/db/schema.ts `cards` table).
 export interface ScryfallCard {
   scryfallId: string;
   oracleId: string;

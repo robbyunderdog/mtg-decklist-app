@@ -1,3 +1,5 @@
+// Type-ahead card search used on the deck editor to add a card by name. Debounces input and
+// closes its dropdown when clicking elsewhere on the page.
 import { useEffect, useRef, useState } from "react";
 import { searchCards, type ScryfallCard } from "../api/cardsApi";
 
@@ -8,6 +10,8 @@ export function CardSearchBox({ onSelect }: { onSelect: (card: ScryfallCard) => 
   const [isLoading, setIsLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Debounced live search — waits 300ms after typing stops before hitting the API, and skips
+  // very short queries that would return too many/irrelevant results.
   useEffect(() => {
     if (query.trim().length < 2) {
       setResults([]);
@@ -26,6 +30,7 @@ export function CardSearchBox({ onSelect }: { onSelect: (card: ScryfallCard) => 
     return () => clearTimeout(handle);
   }, [query]);
 
+  // Closes the results dropdown when the user clicks anywhere outside this component.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {

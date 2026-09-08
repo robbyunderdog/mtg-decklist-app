@@ -1,3 +1,5 @@
+// Small thumbnail that shows a larger floating preview of the card image on hover, following
+// the cursor. Used for deck card rows and printing-picker thumbnails.
 import { useState, type MouseEvent } from "react";
 
 interface Props {
@@ -16,6 +18,7 @@ export function HoverZoomImage({ small, large, alt, className }: Props) {
     setPos({ x: e.clientX, y: e.clientY });
   }
 
+  // Clamps the preview position so it never renders off the edge of the viewport.
   const previewLeft =
     pos && typeof window !== "undefined"
       ? Math.min(pos.x + 24, window.innerWidth - PREVIEW_WIDTH - 16)

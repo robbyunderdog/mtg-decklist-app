@@ -1,3 +1,5 @@
+// Small pill showing a dollar total. Accepts a string because the API sends SQL SUM() results
+// as strings (see server deckPricing.ts) — this is the one place that converts it for display.
 export function PriceTotalBadge({ total }: { total: number | string }) {
   const value = typeof total === "string" ? Number(total) : total;
   return (

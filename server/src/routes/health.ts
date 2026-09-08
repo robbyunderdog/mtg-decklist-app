@@ -1,3 +1,4 @@
+// Unauthenticated liveness check — useful for uptime monitors / container health checks.
 import { Router } from "express";
 
 const router = Router();

@@ -1,3 +1,6 @@
+// Dropdown for manually picking which printing of a card to use in the deck (set/collector
+// number, foil pricing shown per option). Printings are only fetched when the dropdown is
+// opened (`enabled: isOpen`), not eagerly for every card row on the page.
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as decksApi from "../api/decksApi";
@@ -20,6 +23,7 @@ export function PrintingPicker({ deckId, cardRowId, foil, onSelect }: Props) {
     enabled: isOpen,
   });
 
+  // Closes the dropdown when the user clicks anywhere outside this component.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {

@@ -1,3 +1,5 @@
+// One card row in the deck editor: collected-quantity control (checkbox for single copies,
+// +/- stepper for multiples), price, and printing-swap actions.
 import type { DeckCardRow as DeckCardRowData } from "../api/decksApi";
 import { HoverZoomImage } from "./HoverZoomImage";
 import { PrintingPicker } from "./PrintingPicker";
@@ -24,6 +26,7 @@ export function DeckCardRow({
   const { card } = row;
   const price = row.foil ? card.priceUsdFoil : card.priceUsd;
   const priceValue = price != null ? Number(price) : null;
+  // "pulled" = fully collected (every copy checked off) — drives the strikethrough/checkbox state.
   const pulled = row.checkedQuantity >= row.quantity;
 
   return (

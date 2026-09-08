@@ -1,9 +1,13 @@
+// Matches each parsed decklist line against a real Scryfall card (by name, optionally
+// narrowed by set), turning a ParsedLine into a ResolvedLine the import preview UI can render.
 import * as cardCache from "../scryfall/cache.js";
 import { ScryfallNotFoundError } from "../scryfall/client.js";
 import type { ParsedLine, SkippedLine } from "./types.js";
 
 type CardRow = Awaited<ReturnType<typeof cardCache.findCardById>>;
 
+// One line in the import preview: either a confirmed match, a name Scryfall couldn't find
+// (with suggestions to pick from), or a line that failed to parse at all.
 export interface ResolvedLine {
   rawLine: string;
   quantity: number;
@@ -11,6 +15,8 @@ export interface ResolvedLine {
   foil: boolean;
   status: "matched" | "unresolved" | "skipped";
   parsedName: string;
+  // True if Scryfall's fuzzy match returned a different name than what was typed (e.g. a
+  // typo) — surfaced in the UI so the user can double check the correction.
   nameCorrected?: boolean;
   matchedCard?: CardRow;
   suggestions?: CardRow[];
@@ -31,6 +37,8 @@ async function resolveLine(line: ParsedLine): Promise<ResolvedLine> {
     };
   } catch (err) {
     if (err instanceof ScryfallNotFoundError) {
+      // No exact/fuzzy match — offer a handful of live search results so the user can pick
+      // the intended card manually in the preview table instead of the line being dropped.
       let suggestions: CardRow[] = [];
       try {
         suggestions = await cardCache.searchCardsLive(line.parsedName);
@@ -51,6 +59,9 @@ async function resolveLine(line: ParsedLine): Promise<ResolvedLine> {
   }
 }
 
+// Resolves every parsed line against Scryfall (sequentially, to stay within the shared rate
+// limiter — see services/scryfall/client.ts) and appends the unparseable lines as "skipped"
+// so the caller gets one combined list to render.
 export async function resolveCards(
   lines: ParsedLine[],
   skipped: SkippedLine[]

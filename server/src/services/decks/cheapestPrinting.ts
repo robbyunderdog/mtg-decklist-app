@@ -1,3 +1,6 @@
+// Logic for "use cheapest printing" — both the single-card button and the whole-deck sweep
+// (deckCardsController.ts) end up calling swapToCard, which is where the actual database
+// changes (and the row-merge handling) live.
 import { and, eq } from "drizzle-orm";
 import { db } from "../../db/pool.js";
 import { deckCards, cards } from "../../db/schema.js";

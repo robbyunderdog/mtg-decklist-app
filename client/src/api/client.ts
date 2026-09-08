@@ -1,3 +1,5 @@
+// Shared fetch wrapper every api/* module builds on — handles the API base path, the auth
+// cookie, JSON parsing, and turning non-2xx responses into a typed error.
 export class ApiError extends Error {
   status: number;
 
@@ -7,6 +9,8 @@ export class ApiError extends Error {
   }
 }
 
+// `credentials: "include"` is what makes the browser send the httpOnly auth cookie on
+// cross-origin requests to the API (client and server run on different ports in dev).
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...options,

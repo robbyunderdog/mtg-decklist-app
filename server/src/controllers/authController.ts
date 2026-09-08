@@ -1,3 +1,4 @@
+// Registration, login, logout, and the "who am I" check the client runs on app load.
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
@@ -22,6 +23,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// Creates a new user account and immediately logs them in (sets the auth cookie).
 export async function register(req: Request, res: Response) {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -47,6 +49,8 @@ export async function register(req: Request, res: Response) {
   res.status(201).json({ user });
 }
 
+// Verifies credentials and sets the auth cookie. Uses one generic error message for both
+// "no such email" and "wrong password" so a failed login can't be used to enumerate accounts.
 export async function login(req: Request, res: Response) {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -71,6 +75,8 @@ export function logout(_req: Request, res: Response) {
   res.status(204).send();
 }
 
+// Returns the currently logged-in user, or 401 if the session is missing/expired. The client
+// calls this once on load to decide whether to show the app or redirect to /login.
 export async function me(req: Request, res: Response) {
   const user = await db.query.users.findFirst({
     where: eq(users.id, req.userId!),

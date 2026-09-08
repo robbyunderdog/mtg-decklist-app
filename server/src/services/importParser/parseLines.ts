@@ -1,3 +1,6 @@
+// Turns raw decklist text into a flat list of "N copies of Card Name, on this board" lines,
+// given the format detectFormat.ts already identified. Doesn't touch Scryfall — purely
+// string parsing. Card names are matched against real cards afterwards in resolveCards.ts.
 import type { Board, ImportFormat, ParsedLine, SkippedLine } from "./types.js";
 
 const BASE_LINE = /^(\d+)x?\s+(.+)$/;
@@ -19,6 +22,9 @@ export interface ParseResult {
   skipped: SkippedLine[];
 }
 
+// Walks the text line by line, tracking which board section we're currently in (starts as
+// "main" and switches on a recognized header line for the given format) and turning each
+// "4 Lightning Bolt"-style line into a ParsedLine.
 export function parseLines(text: string, format: ImportFormat): ParseResult {
   const rawLines = text.split(/\r?\n/);
   const lines: ParsedLine[] = [];
@@ -31,6 +37,8 @@ export function parseLines(text: string, format: ImportFormat): ParseResult {
     const trimmed = rawLine.trim();
 
     if (trimmed === "") {
+      // Arena's plain-text export has no explicit "Sideboard" header — it just separates
+      // main and sideboard with one blank line — so the *first* blank line is the signal.
       if (format === "arena" && !arenaHasToggled) {
         currentBoard = "side";
         arenaHasToggled = true;
@@ -63,6 +71,7 @@ export function parseLines(text: string, format: ImportFormat): ParseResult {
       }
     }
 
+    // "// comment" lines and a bare "Deck" header (both common in exported files) are just noise.
     if (trimmed.startsWith("//") || trimmed.toLowerCase() === "deck") {
       continue;
     }
@@ -88,6 +97,9 @@ export function parseLines(text: string, format: ImportFormat): ParseResult {
         name = name.replace(TRAILING_FOIL_TOKEN, "").trim();
       }
 
+      // Pulls the set code out of a trailing "(SET) 123" annotation so resolveCards.ts can
+      // resolve the exact printing instead of whatever printing Scryfall's fuzzy name match
+      // happens to prefer.
       const setMatch = name.match(TRAILING_SET_ANNOTATION);
       if (setMatch) {
         setCode = setMatch[1].toLowerCase();

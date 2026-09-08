@@ -1,3 +1,4 @@
+// Public registration form. Creates the account and logs the user straight in on success.
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";

@@ -1,3 +1,5 @@
+// Sniffs which decklist text format was pasted, so parseLines.ts knows which header/foil
+// conventions to expect. Order matters: more specific/unambiguous signals are checked first.
 import type { ImportFormat } from "./types.js";
 
 const ARCHIDEKT_BRACKET_HEADER = /\[(maybeboard|commander|sideboard)\]/i;

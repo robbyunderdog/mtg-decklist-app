@@ -7,6 +7,8 @@ Import, store, and track Magic: The Gathering decklists, with card data/images/p
 - `client/` — React + Vite + TypeScript frontend
 - `server/` — Express + TypeScript API, PostgreSQL via Drizzle ORM
 
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for a full walkthrough of how the app works.
+
 ## Local setup
 
 ### 1. Database

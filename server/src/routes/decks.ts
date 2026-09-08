@@ -1,3 +1,7 @@
+// Deck CRUD, per-card operations within a deck (add/update/remove, printing swaps), and
+// finalizing an import into an existing deck. Every route here requires authentication and
+// every controller re-checks deck ownership (see deckAccess.ts) — a user can only ever touch
+// their own decks.
 import { Router } from "express";
 import {
   createDeck,
@@ -37,6 +41,7 @@ router.post("/:id/cheapest-printings", useCheapestPrintingForDeck);
 router.get("/:id/cards/:cardRowId/printings", listPrintingsForCard);
 router.post("/:id/cards/:cardRowId/printing", setPrinting);
 
+// Overwrites the deck's cards with a previously-previewed import (see /imports/preview).
 router.post("/:id/import/confirm", confirm);
 
 export default router;

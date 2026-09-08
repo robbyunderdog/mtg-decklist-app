@@ -1,3 +1,4 @@
+// Public login form. Redirects to the dashboard on success.
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/AuthContext";

@@ -1,10 +1,13 @@
+// Deck-level CRUD: list a user's decks, create/rename/archive one, fetch one deck's full card
+// list, delete a deck. Card-level operations (add/remove/check off a card) live in
+// deckCardsController.ts instead.
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../db/pool.js";
 import { cards, deckCards, decks } from "../db/schema.js";
 import { getOwnedDeck } from "../services/decks/deckAccess.js";
-import { MAIN_TOTAL_SQL } from "../services/decks/deckPricing.js";
+import { MAIN_CHECKED_TOTAL_SQL, MAIN_QUANTITY_TOTAL_SQL, MAIN_TOTAL_SQL } from "../services/decks/deckPricing.js";
 import { DECK_FORMATS } from "../constants/formats.js";
 
 const createDeckSchema = z.object({
@@ -20,6 +23,9 @@ const updateDeckSchema = z.object({
   tags: z.array(z.string().max(50)).optional(),
 });
 
+// Dashboard data: every deck the logged-in user owns, with just enough aggregated info
+// (price total, collected-vs-total card counts) to render the deck cards without a second
+// request per deck. Sorted most-recently-updated first.
 export async function listDecks(req: Request, res: Response) {
   const rows = await db
     .select({
@@ -30,6 +36,8 @@ export async function listDecks(req: Request, res: Response) {
       tags: decks.tags,
       updatedAt: decks.updatedAt,
       priceTotal: MAIN_TOTAL_SQL,
+      quantityTotal: MAIN_QUANTITY_TOTAL_SQL,
+      checkedTotal: MAIN_CHECKED_TOTAL_SQL,
     })
     .from(decks)
     .leftJoin(deckCards, eq(deckCards.deckId, decks.id))
@@ -38,9 +46,19 @@ export async function listDecks(req: Request, res: Response) {
     .groupBy(decks.id)
     .orderBy(desc(decks.updatedAt));
 
-  res.json({ decks: rows });
+  res.json({
+    // Postgres SUM() comes back over the wire as a string, not a number (see deckPricing.ts) —
+    // converted here so the client's "is this deck fully collected?" comparison is numeric,
+    // not a lexicographic string comparison (which broke on decks with 100+ cards: "99" > "100").
+    decks: rows.map((row) => ({
+      ...row,
+      quantityTotal: Number(row.quantityTotal),
+      checkedTotal: Number(row.checkedTotal),
+    })),
+  });
 }
 
+// Creates an empty deck (cards are added afterward, one at a time or via import).
 export async function createDeck(req: Request, res: Response) {
   const parsed = createDeckSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -56,6 +74,8 @@ export async function createDeck(req: Request, res: Response) {
   res.status(201).json({ deck });
 }
 
+// Full deck detail for the deck editor: every card row (every board, not just main) plus the
+// main-board dollar total.
 export async function getDeck(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -86,6 +106,7 @@ export async function getDeck(req: Request, res: Response) {
   res.json({ deck, cards: cardRows, priceTotal });
 }
 
+// Partial update of deck metadata (name, format, status, notes, tags) — any subset of fields.
 export async function updateDeck(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -108,6 +129,7 @@ export async function updateDeck(req: Request, res: Response) {
   res.json({ deck: updated });
 }
 
+// Deletes a deck; its deck_cards rows cascade-delete via the FK in schema.ts.
 export async function deleteDeck(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {

@@ -1,3 +1,5 @@
+// App entry point: wires up React Query (server-state caching), React Router (client-side
+// routing), and the auth context, then mounts <App />.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'

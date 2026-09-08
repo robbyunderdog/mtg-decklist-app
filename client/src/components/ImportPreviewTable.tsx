@@ -1,6 +1,10 @@
+// Editable list of cards on the import preview screen — lets the user fix quantities, resolve
+// unmatched card names via suggestions, or exclude individual lines before confirming import.
 import type { ScryfallCard } from "../api/cardsApi";
 import type { Board } from "../api/decksApi";
 
+// One row in the preview table, derived from an ImportPreviewLine by ImportPage's toDraftRows
+// (merging duplicate cards, defaulting excluded/board, etc. — see ImportPage.tsx).
 export interface DraftRow {
   key: string;
   rawLine: string;

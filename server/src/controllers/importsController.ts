@@ -1,15 +1,27 @@
+// Decklist import: preview (parse text or fetch a deck link without saving anything) and
+// confirm (write the reviewed lines into a deck, either an existing one or a brand new one).
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../db/pool.js";
 import { decks, deckCards } from "../db/schema.js";
 import { parseImportText } from "../services/importParser/index.js";
+import {
+  describeUnsupportedDeckUrl,
+  isSupportedDeckUrl,
+  previewDeckUrl,
+} from "../services/importParser/urlImport.js";
 import { getOwnedDeck } from "../services/decks/deckAccess.js";
 import { cacheAllPrintingsForCardIds } from "../services/scryfall/cache.js";
 import { DECK_FORMATS } from "../constants/formats.js";
+import { BadRequestError } from "../utils/params.js";
 
 const previewSchema = z.object({ rawText: z.string().min(1) });
 
+// Parses whatever the user pasted into a reviewable list of cards, without saving anything.
+// Three paths, tried in order: a supported deck-site link (fetched live), a recognized-but-
+// unsupported deck-site link (clear error instead of a confusing "no cards found"), or plain
+// decklist text (the normal paste path).
 export async function preview(req: Request, res: Response) {
   const parsed = previewSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -17,8 +29,18 @@ export async function preview(req: Request, res: Response) {
     return;
   }
 
-  const result = await parseImportText(parsed.data.rawText);
-  res.json(result);
+  const input = parsed.data.rawText.trim();
+  if (isSupportedDeckUrl(input)) {
+    res.json(await previewDeckUrl(input));
+    return;
+  }
+
+  const unsupportedMessage = describeUnsupportedDeckUrl(input);
+  if (unsupportedMessage) {
+    throw new BadRequestError(unsupportedMessage);
+  }
+
+  res.json(await parseImportText(input));
 }
 
 const confirmLineSchema = z.object({
@@ -32,6 +54,8 @@ const confirmSchema = z.object({
   lines: z.array(confirmLineSchema),
 });
 
+// Replaces a deck's entire card list with the given lines, inside one transaction so a
+// failure partway through can't leave the deck with only some of its old cards deleted.
 async function commitImport(deckId: string, lines: z.infer<typeof confirmSchema>["lines"]) {
   await db.transaction(async (tx) => {
     await tx.delete(deckCards).where(eq(deckCards.deckId, deckId));
@@ -52,6 +76,7 @@ async function commitImport(deckId: string, lines: z.infer<typeof confirmSchema>
   });
 }
 
+// Confirms an import into an existing deck ("re-import / bulk update"), overwriting its cards.
 export async function confirm(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -79,6 +104,7 @@ const importNewSchema = z.object({
   lines: z.array(confirmLineSchema),
 });
 
+// Creates a brand new deck and imports the reviewed lines straight into it in one step.
 export async function importAsNewDeck(req: Request, res: Response) {
   const parsed = importNewSchema.safeParse(req.body);
   if (!parsed.success) {

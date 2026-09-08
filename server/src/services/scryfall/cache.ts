@@ -1,3 +1,7 @@
+// Local Postgres cache in front of the Scryfall API (see scryfall/client.ts). Almost
+// everything else in the app that needs card data — search, printings, deck cards — goes
+// through this module rather than calling Scryfall directly, so a card is only ever fetched
+// live once and reused from the `cards` table after that (until it goes stale, see isStale).
 import { and, eq, ilike, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/pool.js";
 import { cards } from "../../db/schema.js";
@@ -7,6 +11,7 @@ import type { ScryfallCard } from "./client.js";
 
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
+// Maps a Scryfall API card object onto this app's `cards` table row shape.
 function toRow(card: ScryfallCard) {
   const faceImages = card.card_faces?.[0]?.image_uris;
   const images = card.image_uris ?? faceImages;
@@ -35,6 +40,8 @@ function toRow(card: ScryfallCard) {
   };
 }
 
+// Inserts or refreshes one card row, keyed by its Scryfall id (so re-caching an already-known
+// printing just updates its price/data in place instead of erroring on the primary key).
 async function upsertCard(card: ScryfallCard) {
   const row = toRow(card);
   const [saved] = await db
@@ -49,6 +56,8 @@ export async function upsertCards(cardList: ScryfallCard[]) {
   return Promise.all(cardList.map(upsertCard));
 }
 
+// Looks up one exact printing by Scryfall id — cache first, live Scryfall fetch on a miss.
+// Throws ScryfallNotFoundError if Scryfall doesn't recognize the id either.
 export async function findCardById(scryfallId: string) {
   const cached = await db.query.cards.findFirst({ where: eq(cards.scryfallId, scryfallId) });
   if (cached) return cached;
@@ -62,6 +71,9 @@ export interface ResolvedCard {
   exactNameMatch: boolean;
 }
 
+// Looks up a card by name (optionally narrowed to a set) — cache first (case-insensitive
+// exact match), falling back to Scryfall's fuzzy-name search on a miss. `exactNameMatch` is
+// false when Scryfall's fuzzy match corrected a typo, so callers can flag that to the user.
 export async function resolveCardByName(name: string, set?: string): Promise<ResolvedCard> {
   const cached = await db.query.cards.findFirst({
     where: set
@@ -77,11 +89,15 @@ export async function resolveCardByName(name: string, set?: string): Promise<Res
   return { card: saved, exactNameMatch: saved.name.toLowerCase() === name.toLowerCase() };
 }
 
+// Always hits Scryfall directly (used for the card search box, where results need to reflect
+// a live text search rather than only what's already cached) and caches whatever comes back.
 export async function searchCardsLive(query: string) {
   const result = await scryfall.searchCards(query);
   return upsertCards(result.data);
 }
 
+// Picks whichever cached price applies (foil vs. non-foil), falling back to the other one if
+// the requested variant has no price — better to show an approximate price than none at all.
 function cachedPrice(row: typeof cards.$inferSelect, foil: boolean): number | null {
   const primary = foil ? row.priceUsdFoil : row.priceUsd;
   const value = primary ?? row.priceUsd ?? row.priceUsdFoil;
@@ -137,6 +153,7 @@ export interface PrintingOption {
   imageNormal: string | null;
 }
 
+// Trims a full cached card row down to just what the "change printing" picker needs to render.
 function toPrintingOption(row: typeof cards.$inferSelect): PrintingOption {
   return {
     scryfallId: row.scryfallId,
@@ -149,6 +166,8 @@ function toPrintingOption(row: typeof cards.$inferSelect): PrintingOption {
   };
 }
 
+// Printings with no known price sort last rather than first (Infinity), not by pushing
+// unpriced cards above cheap ones.
 function byPriceAsc(a: PrintingOption, b: PrintingOption) {
   const pa = a.priceUsd != null ? Number(a.priceUsd) : Infinity;
   const pb = b.priceUsd != null ? Number(b.priceUsd) : Infinity;
@@ -208,10 +227,13 @@ export async function listPrintings(oracleId: string): Promise<PrintingOption[]>
   return cached.map(toPrintingOption).sort(byPriceAsc);
 }
 
+// True once a cached card's data is more than 24h old — the threshold the nightly price
+// refresh job (jobs/priceRefresh.ts) uses to decide what needs re-fetching.
 export function isStale(fetchedAt: Date) {
   return Date.now() - fetchedAt.getTime() > STALE_AFTER_MS;
 }
 
+// Finds up to `limit` cards whose cached data is stale, for the price refresh job to re-fetch.
 export async function findStaleCardIds(limit = 75) {
   const rows = await db
     .select({ scryfallId: cards.scryfallId })
@@ -221,6 +243,8 @@ export async function findStaleCardIds(limit = 75) {
   return rows.map((r) => r.scryfallId);
 }
 
+// Re-fetches a batch of cards from Scryfall (regardless of staleness) and overwrites their
+// cached rows — used by the nightly refresh job once it already knows which ids are stale.
 export async function refreshCardsById(scryfallIds: string[]) {
   if (scryfallIds.length === 0) return [];
   const result = await scryfall.fetchCardsByIds(scryfallIds);

@@ -1,3 +1,5 @@
+// Everything that operates on individual cards within a deck: add, edit quantity/checked-off
+// count/board/foil, remove, and printing swaps (single card or whole-deck "cheapest printing").
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
@@ -25,6 +27,9 @@ const updateCardSchema = z.object({
   foil: z.boolean().optional(),
 });
 
+// Adds a card to a deck. Adding the same printing/board/foil combo that's already in the
+// deck merges quantities (via the unique constraint + onConflictDoUpdate) instead of creating
+// a duplicate row — see the uq_deck_cards_deck_card_board_foil constraint in schema.ts.
 export async function addCard(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -62,6 +67,7 @@ export async function addCard(req: Request, res: Response) {
   res.status(201).json({ deckCard: row });
 }
 
+// Edits one card row's quantity, checked-off count, board, and/or foil flag (any subset).
 export async function updateCard(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -109,6 +115,7 @@ export async function updateCard(req: Request, res: Response) {
   res.json({ deckCard: row });
 }
 
+// Swaps one card row to its cheapest known printing (same foil/non-foil status preserved).
 export async function useCheapestPrinting(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -139,6 +146,7 @@ export async function useCheapestPrinting(req: Request, res: Response) {
   res.json(result);
 }
 
+// Lists known printings of a card row's underlying card, for the "change printing" picker.
 export async function listPrintingsForCard(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -165,6 +173,7 @@ export async function listPrintingsForCard(req: Request, res: Response) {
 
 const setPrintingSchema = z.object({ scryfallId: z.string().uuid() });
 
+// Swaps one card row to a specific printing the user picked from the printing picker.
 export async function setPrinting(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -203,6 +212,8 @@ export async function setPrinting(req: Request, res: Response) {
   res.json(result);
 }
 
+// Sweeps every card in the deck to its cheapest known printing, one at a time. Best-effort:
+// one card's lookup failing doesn't abort the rest of the sweep.
 export async function useCheapestPrintingForDeck(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {
@@ -237,6 +248,7 @@ export async function useCheapestPrintingForDeck(req: Request, res: Response) {
   res.json({ updated, failed, total: rows.length });
 }
 
+// Removes one card row from the deck entirely.
 export async function deleteCard(req: Request, res: Response) {
   const deck = await getOwnedDeck(req.params.id, req.userId!);
   if (!deck) {

@@ -1,3 +1,6 @@
+// Thin wrapper over the Scryfall REST API — every outbound call to Scryfall goes through
+// here so rate limiting and error translation happen in exactly one place. Nothing in this
+// file touches the local database; see scryfall/cache.ts for the caching layer on top of it.
 import PQueue from "p-queue";
 import { env } from "../../config/env.js";
 
@@ -8,6 +11,8 @@ const SCRYFALL_BASE = "https://api.scryfall.com";
 // that ceiling with margin instead of riding exactly at the limit.
 const queue = new PQueue({ concurrency: 1, interval: 120, intervalCap: 1 });
 
+// Thrown for any Scryfall 404 — callers use this to distinguish "card doesn't exist" from a
+// real failure (network error, 5xx, etc.) that should propagate instead of being handled.
 export class ScryfallNotFoundError extends Error {}
 
 async function scryfallFetch(path: string, init?: RequestInit): Promise<unknown> {
@@ -32,6 +37,7 @@ async function scryfallFetch(path: string, init?: RequestInit): Promise<unknown>
   });
 }
 
+// Subset of Scryfall's card object — only the fields this app actually reads.
 export interface ScryfallCard {
   id: string;
   oracle_id: string;
@@ -50,12 +56,15 @@ export interface ScryfallCard {
   scryfall_uri: string;
 }
 
+// Looks up a card by (possibly misspelled) name; Scryfall's fuzzy matching handles typos.
+// Narrowing by `set` picks that printing specifically instead of Scryfall's default pick.
 export function fetchCardByFuzzyName(name: string, set?: string) {
   const params = new URLSearchParams({ fuzzy: name });
   if (set) params.set("set", set);
   return scryfallFetch(`/cards/named?${params}`) as Promise<ScryfallCard>;
 }
 
+// Looks up one exact printing by its Scryfall id.
 export function fetchCardById(scryfallId: string) {
   return scryfallFetch(`/cards/${scryfallId}`) as Promise<ScryfallCard>;
 }
@@ -72,6 +81,8 @@ export interface SearchOptions {
   dir?: "asc" | "desc";
 }
 
+// Runs a Scryfall search query (Scryfall's own query syntax, e.g. `oracleid:...` or a name
+// fragment). `unique: "prints"` is what returns every printing rather than one per card name.
 export function searchCards(query: string, opts?: SearchOptions) {
   const params = new URLSearchParams({ q: query });
   if (opts?.unique) params.set("unique", opts.unique);
@@ -90,6 +101,8 @@ export interface ScryfallCollectionResult {
   not_found: { id?: string }[];
 }
 
+// Batch-fetches up to 75 exact printings by id in a single request (Scryfall's collection
+// endpoint) — used to refresh many cached cards' prices at once instead of one call each.
 export function fetchCardsByIds(scryfallIds: string[]) {
   return scryfallFetch("/cards/collection", {
     method: "POST",

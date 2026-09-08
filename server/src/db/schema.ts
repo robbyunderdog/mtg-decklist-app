@@ -1,3 +1,6 @@
+// Drizzle ORM table definitions — the single source of truth for the database shape.
+// Running `npm run db:generate` diffs this file against the last migration and writes a new
+// one under db/migrations; `npm run db:migrate` applies pending migrations to DATABASE_URL.
 import {
   pgTable,
   uuid,
@@ -14,6 +17,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
+// Postgres' citext type (case-insensitive text) isn't built into Drizzle, so it's declared
+// manually here. Used for email so "Foo@Bar.com" and "foo@bar.com" collide as the same user.
 const citext = customType<{ data: string }>({
   dataType() {
     return "citext";
@@ -28,10 +33,14 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// A local cache of Scryfall card data, keyed by the specific printing (scryfallId), not the
+// card name — "Lightning Bolt" from different sets are separate rows here. Refreshed lazily on
+// lookup and nightly for anything older than 24h (see services/scryfall/cache.ts).
 export const cards = pgTable(
   "cards",
   {
     scryfallId: uuid("scryfall_id").primaryKey(),
+    // Shared across every printing of the same card — used to find "all printings of X".
     oracleId: uuid("oracle_id").notNull(),
     name: text("name").notNull(),
     setCode: text("set_code").notNull(),
@@ -53,6 +62,7 @@ export const cards = pgTable(
     fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    // Trigram index powers fuzzy/partial ILIKE search in the card search box.
     index("idx_cards_name_trgm").using("gin", sql`${table.name} gin_trgm_ops`),
     index("idx_cards_oracle_id").on(table.oracleId),
   ]
@@ -67,6 +77,9 @@ export const decks = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     format: text("format"),
+    // Stored status is a manual override; the dashboard actually computes "complete" live
+    // from checked-vs-total quantity and only falls back to this column otherwise (see
+    // client DashboardPage.tsx) — so in practice this rarely leaves "in_progress".
     status: text("status").notNull().default("in_progress"),
     notes: text("notes"),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
@@ -79,6 +92,8 @@ export const decks = pgTable(
   ]
 );
 
+// One row per (deck, printing, board, foil) combination — e.g. 4 non-foil copies of a card in
+// the mainboard is one row with quantity 4, not four rows.
 export const deckCards = pgTable(
   "deck_cards",
   {
@@ -90,12 +105,15 @@ export const deckCards = pgTable(
       .notNull()
       .references(() => cards.scryfallId),
     quantity: integer("quantity").notNull(),
+    // How many of `quantity` the user has physically checked off ("collected").
     checkedQuantity: integer("checked_quantity").notNull().default(0),
     board: text("board").notNull().default("main"),
     foil: boolean("foil").notNull().default(false),
   },
   (table) => [
     index("idx_deck_cards_deck_id").on(table.deckId),
+    // Adding the same printing/board/foil combo twice merges quantities (see addCard in
+    // deckCardsController.ts) rather than creating a duplicate row.
     unique("uq_deck_cards_deck_card_board_foil").on(
       table.deckId,
       table.cardId,
@@ -110,4 +128,3 @@ export const deckCards = pgTable(
     check("board_check", sql`${table.board} in ('main','side','maybe','commander')`),
   ]
 );
-

@@ -1,3 +1,5 @@
+// The main deck-checklist screen: collection progress, dollar totals, sort controls, and the
+// list of card rows (each with its own collected-quantity control and printing actions).
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,13 +10,14 @@ import { DeckCardRow } from "../components/DeckCardRow";
 import { ApiError } from "../api/client";
 import { DECK_FORMATS, DECK_FORMAT_LABELS } from "../constants/formats";
 
-type SortKey = "name" | "price-desc" | "price-asc" | "cmc";
+type SortKey = "name" | "price-desc" | "price-asc" | "not-collected" | "collected";
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "name", label: "Name (A–Z)" },
   { value: "price-desc", label: "Price (high to low)" },
   { value: "price-asc", label: "Price (low to high)" },
-  { value: "cmc", label: "Mana value" },
+  { value: "not-collected", label: "Not collected first" },
+  { value: "collected", label: "Collected first" },
 ];
 
 function priceOf(row: DeckCardRowData) {
@@ -22,6 +25,13 @@ function priceOf(row: DeckCardRowData) {
   return price != null ? Number(price) : 0;
 }
 
+// A row counts as "collected" once every copy of it has been checked off.
+function isCollected(row: DeckCardRowData) {
+  return row.checkedQuantity >= row.quantity;
+}
+
+// Both collected-status sorts break ties by name, so cards within the same group don't jump
+// around unpredictably as their checked/unchecked state changes.
 function sortRows(rows: DeckCardRowData[], sort: SortKey) {
   const sorted = [...rows];
   switch (sort) {
@@ -31,8 +41,11 @@ function sortRows(rows: DeckCardRowData[], sort: SortKey) {
     case "price-asc":
       sorted.sort((a, b) => priceOf(a) - priceOf(b));
       break;
-    case "cmc":
-      sorted.sort((a, b) => Number(a.card.cmc ?? 0) - Number(b.card.cmc ?? 0));
+    case "not-collected":
+      sorted.sort((a, b) => Number(isCollected(a)) - Number(isCollected(b)) || a.card.name.localeCompare(b.card.name));
+      break;
+    case "collected":
+      sorted.sort((a, b) => Number(isCollected(b)) - Number(isCollected(a)) || a.card.name.localeCompare(b.card.name));
       break;
     case "name":
     default:
@@ -54,6 +67,8 @@ export function DeckEditorPage() {
     queryFn: () => decksApi.getDeck(deckId),
   });
 
+  // Every mutation below just re-fetches the whole deck rather than patching the cache
+  // in place — simple to reason about, and deck payloads are small enough that it's cheap.
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["deck", deckId] });
 
   const addCardMutation = useMutation({
@@ -93,6 +108,7 @@ export function DeckEditorPage() {
       decksApi.updateDeck(deckId, patch),
     onSuccess: () => {
       invalidate();
+      // Also refresh the dashboard's deck list so a format change is reflected there too.
       queryClient.invalidateQueries({ queryKey: ["decks"] });
     },
   });
@@ -113,6 +129,8 @@ export function DeckEditorPage() {
 
   const sortedRows = useMemo(() => (data ? sortRows(data.cards, sort) : []), [data, sort]);
 
+  // Progress/cost header numbers, computed over every card regardless of board — unlike the
+  // server's dashboard totals, which only count the main board (see server deckPricing.ts).
   const { checkedTotal, quantityTotal, totalCost, remainingCost } = useMemo(() => {
     const empty = { checkedTotal: 0, quantityTotal: 0, totalCost: 0, remainingCost: 0 };
     if (!data) return empty;

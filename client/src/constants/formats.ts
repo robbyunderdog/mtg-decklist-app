@@ -1,3 +1,4 @@
+// The list of deck formats shown in format dropdowns.
 // Kept in sync with server/src/constants/formats.ts. Values match Scryfall's
 // legality keys so they line up with the `legalities` data already cached per card.
 export const DECK_FORMATS = [
@@ -18,6 +19,7 @@ export const DECK_FORMATS = [
 
 export type DeckFormat = (typeof DECK_FORMATS)[number];
 
+// Human-readable labels for each format value, for <select> options.
 export const DECK_FORMAT_LABELS: Record<DeckFormat, string> = {
   standard: "Standard",
   pioneer: "Pioneer",

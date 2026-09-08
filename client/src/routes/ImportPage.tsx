@@ -1,3 +1,7 @@
+// Two-step decklist import screen: paste a link or decklist text and preview it (nothing
+// saved yet), review/edit the resulting card list, then confirm to actually write it into a
+// deck. Handles both "import into a new deck" (/import) and "re-import into an existing deck"
+// (/decks/:id/import) — see App.tsx — branching on whether `deckId` is present.
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import * as importsApi from "../api/importsApi";
@@ -6,13 +10,17 @@ import { ApiError } from "../api/client";
 import { DECK_FORMATS, DECK_FORMAT_LABELS, type DeckFormat } from "../constants/formats";
 
 function toDraftRows(preview: importsApi.ImportPreview): DraftRow[] {
-  // Imports no longer distinguish main/side/maybe/commander — everything lands in one list.
-  // A card that appeared in what used to be separate sections (e.g. main + sideboard) would
+  // Imports no longer distinguish main/commander vs. side/maybe — everything that survives
+  // lands in one list. Sideboard and maybeboard cards (e.g. Moxfield's "Considering" pile)
+  // aren't part of the actual deck, so they're dropped here rather than imported alongside it.
+  // A card that appeared in what used to be separate sections (e.g. main + commander) would
   // otherwise show up as two rows and collide on insert, so matched cards are merged by id.
   const rows: DraftRow[] = [];
   const rowIndexByCardId = new Map<string, number>();
 
   preview.lines.forEach((line, i) => {
+    if (line.board === "side" || line.board === "maybe") return;
+
     const cardId = line.matchedCard?.scryfallId;
     if (cardId) {
       const existingIndex = rowIndexByCardId.get(cardId);
@@ -44,6 +52,7 @@ export function ImportPage() {
   const { id: deckId } = useParams<{ id?: string }>();
   const navigate = useNavigate();
 
+  const [deckLink, setDeckLink] = useState("");
   const [rawText, setRawText] = useState("");
   const [deckName, setDeckName] = useState("");
   const [format, setFormat] = useState<DeckFormat | "">("");
@@ -53,11 +62,13 @@ export function ImportPage() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Whichever of the two inputs has content wins — the two fields clear each other on typing
+  // (see the textarea/input onChange below), so in practice at most one is ever non-empty.
   async function handlePreview() {
     setError(null);
     setIsPreviewing(true);
     try {
-      const preview = await importsApi.previewImport(rawText);
+      const preview = await importsApi.previewImport(deckLink.trim() || rawText);
       setDetectedFormat(preview.detectedFormat);
       setRows(toDraftRows(preview));
     } catch (err) {
@@ -71,6 +82,8 @@ export function ImportPage() {
     setRows((prev) => prev?.map((r) => (r.key === key ? { ...r, ...patch } : r)) ?? null);
   }
 
+  // Writes the reviewed (non-excluded, matched) lines into a deck — either the existing one
+  // being re-imported into, or a brand new one created on the spot.
   async function handleConfirm() {
     if (!rows) return;
     setError(null);
@@ -147,17 +160,37 @@ export function ImportPage() {
                 </select>
               </div>
             )}
+            <input
+              type="text"
+              placeholder="Paste a Moxfield, Archidekt, or MTGGoldfish deck link"
+              value={deckLink}
+              onChange={(e) => {
+                setDeckLink(e.target.value);
+                if (e.target.value) setRawText("");
+              }}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+            />
+
+            <div className="flex items-center gap-3 text-xs text-neutral-500">
+              <div className="h-px flex-1 bg-neutral-800" />
+              or
+              <div className="h-px flex-1 bg-neutral-800" />
+            </div>
+
             <textarea
               rows={14}
               placeholder="Paste your decklist here (plain text, Moxfield, Archidekt, or MTG Arena export format)"
               value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
+              onChange={(e) => {
+                setRawText(e.target.value);
+                if (e.target.value) setDeckLink("");
+              }}
               className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 font-mono text-sm text-neutral-100 outline-none focus:border-neutral-500"
             />
             {error && <p className="text-sm text-red-400">{error}</p>}
             <button
               type="button"
-              disabled={isPreviewing || !rawText.trim() || (!deckId && !format)}
+              disabled={isPreviewing || (!deckLink.trim() && !rawText.trim()) || (!deckId && !format)}
               onClick={handlePreview}
               className="rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
             >
@@ -170,8 +203,8 @@ export function ImportPage() {
           <div className="mt-6 space-y-4">
             <p className="text-sm text-neutral-400">
               Detected format: <span className="text-neutral-200">{detectedFormat}</span> ·{" "}
-              {rows.filter((r) => !r.excluded && r.card).length} of {rows.length} lines will be
-              imported
+              {rows.filter((r) => !r.excluded && r.card).reduce((sum, r) => sum + r.quantity, 0)} of{" "}
+              {rows.reduce((sum, r) => sum + r.quantity, 0)} cards will be imported
             </p>
             <ImportPreviewTable rows={rows} onChange={updateRow} />
             {error && <p className="text-sm text-red-400">{error}</p>}
