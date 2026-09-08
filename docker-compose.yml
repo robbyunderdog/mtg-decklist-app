@@ -1,0 +1,24 @@
+# Production deployment: the app (API + built client, one process) plus a Cloudflare Tunnel
+# daemon that exposes it at your domain without opening any ports on your router.
+# See DEPLOYMENT.md for the one-time Cloudflare setup this depends on.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    # `docker compose` auto-loads a file named `.env` next to this file — it's used both to
+    # fill in ${CLOUDFLARE_TUNNEL_TOKEN} below and, via env_file, as this container's env vars.
+    env_file:
+      - .env
+    # No `ports:` mapping — nothing outside this Docker network needs to reach the app
+    # directly. cloudflared reaches it over the compose network at http://app:4000.
+    expose:
+      - "4000"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
