@@ -2,7 +2,9 @@
 # runtime image containing only the compiled output and production dependencies.
 #
 #   docker build -t mtg-decklist-app .
-#   docker run --env-file .env.production -p 4000:4000 mtg-decklist-app
+#   docker run --env-file .env -p 4000:4000 mtg-decklist-app
+#
+# Normally you don't run these by hand — `docker compose up -d --build` does it (see DEPLOYMENT.md).
 
 # --- Build the client (React/Vite) ---
 FROM node:20-alpine AS client-build

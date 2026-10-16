@@ -3,8 +3,8 @@ dist/
 build/
 server/public/
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 *.log
 .DS_Store
 .claude/settings.local.json

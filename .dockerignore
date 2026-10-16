@@ -2,7 +2,8 @@
 **/dist
 **/build
 .git
-.env
-.env.local
+**/.env
+**/.env.*
+!**/.env.example
 *.log
 .claude

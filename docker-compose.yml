@@ -1,6 +1,7 @@
 # Production deployment: the app (API + built client, one process) plus a Cloudflare Tunnel
 # daemon that exposes it at your domain without opening any ports on your router.
-# See DEPLOYMENT.md for the one-time Cloudflare setup this depends on.
+# Configure via .env (copy .env.example). See DEPLOYMENT.md for setup, including the one-time
+# Cloudflare Tunnel configuration this depends on.
 services:
   app:
     build: .
