@@ -161,6 +161,12 @@ different conventions for two things: how a card line is formatted (`4x Lightnin
 
 ### Pasting a link
 
+> **Currently hidden in the UI.** Moxfield now blocks all automated requests (403 from its
+> Cloudflare WAF, even for curl), so the deck-link input on the import page is turned off via
+> `DECK_LINK_IMPORT_ENABLED` in `client/src/routes/ImportPage.tsx`. The server side below is
+> untouched and still works for Archidekt/MTGGoldfish — flip that flag to bring it back (e.g.
+> once Moxfield grants an approved User-Agent).
+
 Instead of text, you can paste a Moxfield, Archidekt, or MTGGoldfish deck URL
 (`server/src/services/importParser/urlImport.ts`). This skips the text-parsing step entirely:
 

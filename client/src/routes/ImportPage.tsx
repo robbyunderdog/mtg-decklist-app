@@ -9,6 +9,11 @@ import { ImportPreviewTable, type DraftRow } from "../components/ImportPreviewTa
 import { ApiError } from "../api/client";
 import { DECK_FORMATS, DECK_FORMAT_LABELS, type DeckFormat } from "../constants/formats";
 
+// Deck-link import (Moxfield/Archidekt/MTGGoldfish URLs) is hidden for now because Moxfield
+// blocks all automated requests. The server-side support (urlImport.ts) is left in place —
+// flip this to true to bring the link input back.
+const DECK_LINK_IMPORT_ENABLED = false;
+
 function toDraftRows(preview: importsApi.ImportPreview): DraftRow[] {
   // Imports no longer distinguish main/commander vs. side/maybe — everything that survives
   // lands in one list. Sideboard and maybeboard cards (e.g. Moxfield's "Considering" pile)
@@ -160,22 +165,26 @@ export function ImportPage() {
                 </select>
               </div>
             )}
-            <input
-              type="text"
-              placeholder="Paste a Moxfield, Archidekt, or MTGGoldfish deck link"
-              value={deckLink}
-              onChange={(e) => {
-                setDeckLink(e.target.value);
-                if (e.target.value) setRawText("");
-              }}
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
-            />
+            {DECK_LINK_IMPORT_ENABLED && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Paste a Moxfield, Archidekt, or MTGGoldfish deck link"
+                  value={deckLink}
+                  onChange={(e) => {
+                    setDeckLink(e.target.value);
+                    if (e.target.value) setRawText("");
+                  }}
+                  className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-neutral-500"
+                />
 
-            <div className="flex items-center gap-3 text-xs text-neutral-500">
-              <div className="h-px flex-1 bg-neutral-800" />
-              or
-              <div className="h-px flex-1 bg-neutral-800" />
-            </div>
+                <div className="flex items-center gap-3 text-xs text-neutral-500">
+                  <div className="h-px flex-1 bg-neutral-800" />
+                  or
+                  <div className="h-px flex-1 bg-neutral-800" />
+                </div>
+              </>
+            )}
 
             <textarea
               rows={14}
